@@ -143,11 +143,12 @@
 
 
         // --- Supabase Configuration (IMPORTANT: Replace with YOUR Project URL and Anon Key) ---
-        const SUPABASE_URL = 'https://gmpjqsbfnjssfrqnylvv.supabase.co'; // e.g., 'https://abcde12345.supabase.co'
-        const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdtcGpxc2Jmbmpzc2ZycW55bHZ2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDkzMDg0MTEsImV4cCI6MjA2NDg4NDQxMX0.qFb7ItG5ZhPrelSxOZqWu7J6yYU8NKEN1lrE1kunYyw'; // e.g., 'eyJhbGciOiJIUzI1Ni...'
+        const SUPABASE_URL = 'https://gmpjqsbfnjssfrqnylvv.supabase.co'; // PASTE YOUR URL HERE
+        const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImdtcGpxc2Jmbmpzc2ZycW55bHZ2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDkzMDg0MTEsImV4cCI6MjA2NDg4NDQxMX0.qFb7ItG5ZhPrelSxOZqWu7J6yYU8NKEN1lrE1kunYyw'; // PASTE YOUR ANON KEY HERE
 
         // Initialize Supabase client
         const supabase = Supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+        console.log("Supabase client initialized. Client object:", supabase); // NEW DEBUG LINE
 
         // --- DOM Elements ---
         const userForm = document.getElementById('user-form');
@@ -174,7 +175,7 @@
         // --- CRUD Operations ---
 
         async function fetchUsers() {
-            console.log('Fetching users initiated...');
+            console.log('Fetching users initiated...'); // STILL EXPECTING THIS
             usersTableBody.innerHTML = '<tr><td colspan="5" class="px-6 py-4 text-center text-gray-500">Loading users...</td></tr>';
             try {
                 // Fetch data from the 'users' table
@@ -338,7 +339,10 @@
         cancelEditButton.addEventListener('click', resetForm);
 
         // --- Initial Load ---
-        document.addEventListener('DOMContentLoaded', fetchUsers);
+        document.addEventListener('DOMContentLoaded', () => { // Modified for more debug
+            console.log("DOMContentLoaded event fired. Calling fetchUsers..."); // NEW DEBUG LINE
+            fetchUsers();
+        });
     </script>
 </body>
 </html>
