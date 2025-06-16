@@ -66,7 +66,7 @@
 </head>
 <body>
     <div class="container">
-        <h1 class="text-3xl font-bold text-center text-gray-800 mb-6">User Manager (Supabasfesfseffefe)</h1>
+        <h1 class="text-3xl font-bold text-center text-gray-800 mb-6">User Manager (Supabase)</h1>
 
         <div id="flash-message-container" class="flash-message"></div>
 
@@ -148,9 +148,238 @@
 
         let supabase; // Declare supabase outside the try-catch for wider scope
 
+        // --- NEW DIAGNOSTIC CHECKS ---
+        console.log("Checking for Supabase global object...");
+        if (typeof Supabase === 'undefined') {
+            console.error("ERROR: 'Supabase' object is undefined. The Supabase SDK likely failed to load or execute.");
+            document.getElementById('users-table-body').innerHTML = `<tr><td colspan="5" class="px-6 py-4 text-center text-red-500">
+                Critical Error: Supabase SDK not found.
+            </td></tr>`;
+            document.getElementById('user-form').style.display = 'none';
+            return; // Stop further execution
+        } else {
+            console.log("Supabase object found.");
+            if (typeof Supabase.createClient !== 'function') {
+                console.error("ERROR: 'Supabase.createClient' is not a function. The Supabase SDK might be corrupted or incorrectly loaded.");
+                 document.getElementById('users-table-body').innerHTML = `<tr><td colspan="5" class="px-6 py-4 text-center text-red-500">
+                    Critical Error: Supabase.createClient not a function.
+                </td></tr>`;
+                document.getElementById('user-form').style.display = 'none';
+                return; // Stop further execution
+            } else {
+                console.log("Supabase.createClient function found. Attempting to initialize client...");
+            }
+        }
+        // --- END NEW DIAGNOSTIC CHECKS ---
+
+
         try {
             // Initialize Supabase client
             supabase = Supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
             console.log("Supabase client initialized successfully. Client object:", supabase); // Success log
         } catch (e) {
-            console.
+            console.error("ERROR during Supabase client initialization (caught by try/catch):", e.message, e); // Direct error log
+            // Prevent further execution if client fails to init
+            document.getElementById('users-table-body').innerHTML = `<tr><td colspan="5" class="px-6 py-4 text-center text-red-500">
+                Failed to initialize Supabase client. Check debug console for details.
+            </td></tr>`;
+            document.getElementById('user-form').style.display = 'none'; // Hide form if no connection
+            return; // Stop script execution here
+        }
+
+        // --- DOM Elements ---
+        const userForm = document.getElementById('user-form');
+        const userIdInput = document.getElementById('user-id');
+        const nameInput = document.getElementById('name');
+        const emailInput = document.getElementById('email');
+        const submitButton = document.getElementById('submit-button');
+        const cancelEditButton = document.getElementById('cancel-edit-button');
+        const formTitle = document.getElementById('form-title');
+        const usersTableBody = document.getElementById('users-table-body');
+        const flashMessageContainer = document.getElementById('flash-message-container');
+
+        let editingUserId = null; // To keep track if we are in edit mode
+
+        // --- Helper Function for Flash Messages ---
+        function showFlashMessage(message, type) {
+            flashMessageContainer.textContent = message;
+            flashMessageContainer.className = `flash-message show flash-${type}`;
+            setTimeout(() => {
+                flashMessageContainer.className = 'flash-message';
+            }, 5000); // Hide after 5 seconds
+        }
+
+        // --- CRUD Operations ---
+
+        async function fetchUsers() {
+            console.log('Fetching users initiated...');
+            usersTableBody.innerHTML = '<tr><td colspan="5" class="px-6 py-4 text-center text-gray-500">Loading users...</td></tr>';
+            try {
+                // Fetch data from the 'users' table
+                const { data, error } = await supabase
+                    .from('users')
+                    .select('id, name, email, created_at')
+                    .order('id', { ascending: true });
+
+                if (error) {
+                    console.error('Error fetching users from Supabase:', error.message, error);
+                    showFlashMessage('Error fetching users: ' + error.message, 'error');
+                    usersTableBody.innerHTML = `<tr><td colspan="5" class="px-6 py-4 text-center text-red-500">Error loading users: ${error.message}</td></tr>`;
+                    return;
+                }
+
+                console.log('Users fetched successfully:', data);
+                usersTableBody.innerHTML = ''; // Clear loading message
+
+                if (data && data.length > 0) {
+                    data.forEach(user => {
+                        const row = usersTableBody.insertRow();
+                        row.className = 'hover:bg-gray-50'; // Add hover effect
+                        row.innerHTML = `
+                            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${user.id}</td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-700">${user.email}</td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-700">${user.name}</td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${new Date(user.created_at).toLocaleString()}</td>
+                            <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                                <button onclick="editUser(${user.id}, '${user.name}', '${user.email}')"
+                                        class="text-blue-600 hover:text-blue-900 mr-4">Edit</button>
+                                <button onclick="deleteUser(${user.id})"
+                                        class="text-red-600 hover:text-red-900">Delete</button>
+                            </td>
+                        `;
+                    });
+                } else {
+                    usersTableBody.innerHTML = '<tr><td colspan="5" class="px-6 py-4 text-center text-gray-600">No users found. Add one above!</td></tr>';
+                }
+            } catch (err) {
+                console.error('Unexpected error in fetchUsers function:', err);
+                showFlashMessage('An unexpected error occurred while fetching users.', 'error');
+                usersTableBody.innerHTML = `<tr><td colspan="5" class="px-6 py-4 text-center text-red-500">An unexpected error occurred.</td></tr>`;
+            }
+        }
+
+        async function addUser(name, email) {
+            console.log('Attempting to add user:', { name, email });
+            try {
+                const { data, error } = await supabase
+                    .from('users')
+                    .insert([{ name, email }]);
+
+                if (error) {
+                    console.error('Error adding user to Supabase:', error.message, error);
+                    showFlashMessage('Error adding user: ' + error.message, 'error');
+                    return;
+                }
+                console.log('User added successfully:', data);
+                showFlashMessage('User added successfully!', 'success');
+                userForm.reset(); // Clear form
+                fetchUsers(); // Refresh list
+            } catch (err) {
+                console.error('Unexpected error in addUser function:', err);
+                showFlashMessage('An unexpected error occurred while adding user.', 'error');
+            }
+        }
+
+        async function updateUser(id, name, email) {
+            console.log('Attempting to update user:', { id, name, email });
+            try {
+                const { data, error } = await supabase
+                    .from('users')
+                    .update({ name, email })
+                    .eq('id', id);
+
+                if (error) {
+                    console.error('Error updating user in Supabase:', error.message, error);
+                    showFlashMessage('Error updating user: ' + error.message, 'error');
+                    return;
+                }
+                console.log('User updated successfully:', data);
+                showFlashMessage('User updated successfully!', 'success');
+                resetForm(); // Clear form and reset to add mode
+                fetchUsers(); // Refresh list
+            } catch (err) {
+                console.error('Unexpected error in updateUser function:', err);
+                showFlashMessage('An unexpected error occurred while updating user.', 'error');
+            }
+        }
+
+        async function deleteUser(id) {
+            if (!confirm('Are you sure you want to delete this user?')) {
+                return;
+            }
+            console.log('Attempting to delete user ID:', id);
+            try {
+                const { error } = await supabase
+                    .from('users')
+                    .delete()
+                    .eq('id', id);
+
+                if (error) {
+                    console.error('Error deleting user from Supabase:', error.message, error);
+                    showFlashMessage('Error deleting user: ' + error.message, 'error');
+                    return;
+                }
+                console.log('User deleted successfully.');
+                showFlashMessage('User deleted successfully!', 'success');
+                fetchUsers(); // Refresh list
+            } catch (err) {
+                console.error('Unexpected error in deleteUser function:', err);
+                showFlashMessage('An unexpected error occurred while deleting user.', 'error');
+            }
+        }
+
+        // --- Form Submission Handler ---
+        userForm.addEventListener('submit', async (e) => {
+            e.preventDefault(); // Prevent default form submission
+
+            const name = nameInput.value.trim();
+            const email = emailInput.value.trim();
+
+            if (!name || !email) {
+                showFlashMessage('Name and Email cannot be empty!', 'error');
+                return;
+            }
+
+            if (editingUserId) {
+                await updateUser(editingUserId, name, email);
+            } else {
+                await addUser(name, email);
+            }
+        });
+
+        // --- Edit Mode Functions ---
+        function editUser(id, name, email) {
+            console.log('Entering edit mode for user ID:', id);
+            editingUserId = id;
+            userIdInput.value = id;
+            nameInput.value = name;
+            emailInput.value = email;
+            submitButton.textContent = 'Update User';
+            formTitle.textContent = 'Edit User';
+            cancelEditButton.style.display = 'inline-block';
+            showFlashMessage('Editing user ID: ' + id, 'info');
+        }
+
+        function resetForm() {
+            console.log('Exiting edit mode / Resetting form.');
+            editingUserId = null;
+            userForm.reset();
+            userIdInput.value = '';
+            nameInput.value = '';
+            emailInput.value = '';
+            submitButton.textContent = 'Add User';
+            formTitle.textContent = 'Add New User';
+            cancelEditButton.style.display = 'none';
+            showFlashMessage('Form reset.', 'info');
+        }
+
+        cancelEditButton.addEventListener('click', resetForm);
+
+        // --- Initial Load ---
+        document.addEventListener('DOMContentLoaded', () => {
+            console.log("DOMContentLoaded event fired. Calling fetchUsers...");
+            fetchUsers();
+        });
+    </script>
+</body>
+</html>
